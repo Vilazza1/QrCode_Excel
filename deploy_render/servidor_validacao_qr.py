@@ -184,7 +184,7 @@ def listar_usados():
         </ul>
         <a href="/">Voltar para a página inicial</a>
     </body>
-    </html>a
+    </html>
     """
     return html
 
