@@ -1,9 +1,13 @@
-from flask import Flask, request
+from flask import Flask, request, send_file
 import os
 import json
+from io import BytesIO
+from openpyxl import load_workbook
 
 app = Flask(__name__)
+
 ARQUIVO_USADOS = "usados.json"
+MODELO_XLSX = "modelo.xlsx"
 
 # Cria o arquivo JSON se não existir
 if not os.path.exists(ARQUIVO_USADOS):
@@ -80,9 +84,7 @@ def home():
                                     console.error('Erro ao parar o scanner', err);
                                 });
                             },
-                            errorMessage => {
-                                // Erros temporários ignorados
-                            }
+                            errorMessage => {}
                         ).catch(err => {
                             mensagemBox.innerHTML = "Não foi possível iniciar a câmera.";
                             btnScan.style.display = 'block';
@@ -187,12 +189,48 @@ def listar_usados():
 
     html += """
             </ul>
+            <a class="back-link" href="/exportar_excel">⬇️ Baixar Excel</a>
             <a class="back-link" href="/">← Voltar para a página inicial</a>
         </div>
     </body>
     </html>
     """
     return html
+
+@app.route("/exportar_excel")
+def exportar_excel():
+    if not os.path.exists(ARQUIVO_USADOS):
+        return "Nenhum dado para exportar", 404
+    if not os.path.exists(MODELO_XLSX):
+        return "Modelo de planilha não encontrado", 404
+
+    with open(ARQUIVO_USADOS, "r") as f:
+        usados = json.load(f)
+
+    try:
+        wb = load_workbook(MODELO_XLSX)
+        ws = wb.active
+
+        for idx, item in enumerate(usados, start=2):  # Começa na linha 2
+            dados = json.loads(item)
+            ws.cell(row=idx, column=1, value=dados.get("nome", ""))
+            ws.cell(row=idx, column=2, value=dados.get("tipo", ""))
+            ws.cell(row=idx, column=3, value=dados.get("documento", ""))
+            ws.cell(row=idx, column=4, value=dados.get("email", ""))
+            ws.cell(row=idx, column=5, value=dados.get("telefone", ""))
+    except Exception as e:
+        return f"Erro ao exportar planilha: {e}", 500
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="qrcodes_exportados.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
